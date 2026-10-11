@@ -7,9 +7,14 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from core.agent_graph import build_ncbi_kegg_graph
+from core.memory_db import init_db, save_message, get_recent_messages, get_all_facts
+from analytics.rhea_analytics import _load_all as preload_rhea_db
 from pydantic import BaseModel
 
-app = FastAPI(title="Bioweaver API")
+# Pre-load local Rhea database cache into RAM at startup
+preload_rhea_db()
+
+app = FastAPI(title="Bio-Inoscula API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,6 +34,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Build the global agent instance
 agent = build_ncbi_kegg_graph()
+init_db()
 
 class ChatRequest(BaseModel):
     message: str
@@ -44,10 +50,30 @@ async def chat_endpoint(req: ChatRequest):
     """
     prompt = req.message
 
+    # 1. Save user message to Episodic Memory
+    save_message("user", prompt)
+
+    # 2. Get Semantic Facts and inject them as a system message
+    facts = get_all_facts()
+    fact_context = ""
+    if facts:
+        fact_lines = [f"ID: {f[0]} | Fact: {f[1]}" for f in facts]
+        fact_context = "CRITICAL: The user has defined the following permanent preferences/facts. You must adhere to them strictly:\n" + "\n".join(fact_lines) + "\n(To forget a fact, use tool_forget_fact with the ID)."
+
+    # 3. Reconstruct the Sliding Window payload
+    messages_payload = []
+    if fact_context:
+        messages_payload.append(("system", fact_context))
+
+    recent_msgs = get_recent_messages(10)
+    for role, msg in recent_msgs:
+        messages_payload.append((role, msg))
+
     async def stream_generator():
         try:
+            full_ai_response = ""
             for update in agent.stream(
-                {"messages": [("user", prompt)]},
+                {"messages": messages_payload},
                 config={"recursion_limit": 150},
                 stream_mode="updates"
             ):
@@ -63,10 +89,15 @@ async def chat_endpoint(req: ChatRequest):
                                 chunk_text = "".join(block.get("text", "") for block in last_msg.content if isinstance(block, dict))
                             
                             if chunk_text:
+                                full_ai_response = chunk_text
                                 import json
                                 # Use JSON encoding so newlines in markdown aren't broken by the SSE protocol
                                 payload = json.dumps({"chunk": chunk_text})
                                 yield f"data: {payload}\n\n"
+            
+            # 4. Save AI's response to Episodic Memory once finished
+            if full_ai_response:
+                save_message("assistant", full_ai_response)
         except Exception as e:
             import json
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -76,5 +107,5 @@ async def chat_endpoint(req: ChatRequest):
 if __name__ == "__main__":
     import uvicorn
     # How to run: python app.py or uv run uvicorn app:app --reload
-    print("Starting Bioweaver Backend Server...")
+    print("Starting Bio-Inoscula Backend Server...")
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

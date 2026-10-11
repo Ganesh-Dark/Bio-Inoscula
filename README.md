@@ -1,14 +1,14 @@
-# Bioweaver
+# Bio-Inoscula
 
-Bioweaver is a ReAct-powered biomedical AI agent. It acts as a central hub, dynamically querying and weaving together data from NCBI, KEGG, Reactome, and ClinVar. It allows users to ask natural language questions about genes, pathways, diseases, compounds, drugs, mutations and retrieve factual answers directly from official biological databases.
+Bio-Inoscula is a ReAct-powered biomedical AI agent. It acts as a central hub, dynamically querying and weaving together data from NCBI, KEGG, Reactome, and ClinVar. It allows users to ask natural language questions about genes, pathways, diseases, compounds, drugs, mutations and retrieve factual answers directly from official biological databases.
 
 > **⚠️ IMPORTANT OVERVIEW DISCLAIMER ⚠️**
-> **Bioweaver is designed as an "Overview Agent." Because biological databases are incredibly vast (pathways can have thousands of genes and metabolites), the script is hardcoded to return TRIMMED and PAGINATED results to prevent the AI from crashing or running out of context memory.**
+> **Bio-Inoscula is designed as an "Overview Agent." Because biological databases are incredibly vast (pathways can have thousands of genes and metabolites), the script is hardcoded to return TRIMMED and PAGINATED results to prevent the AI from crashing or running out of context memory.**
 > **If you need comprehensive, exhaustive data (e.g., all 400 genes in a pathway), you MUST manually tweak the script parameters and use your own heavy-duty API keys.**
 
 ## Features & Capabilities
 
-Bioweaver is equipped with tools to query specific biological domains:
+Bio-Inoscula is equipped with tools to query specific biological domains:
 *   **Pathways & Metabolism (KEGG & Reactome):** Fetches comprehensive lists of genes, compounds, and drugs involved in specific biological pathways. It dynamically merges data from both databases and deduplicates the results.
 *   **Diseases & Modules (KEGG & Wikipedia):** Searches the KEGG Disease database to find genes linked to specific diseases, and automatically falls back to Wikipedia to provide human-readable overviews of rare diseases.
 *   **Clinical Variants (ClinVar):** Uses a local DuckDB engine to rapidly search the massive ClinVar database for known pathogenic mutations associated with specific genes.
@@ -73,7 +73,7 @@ python app.py
 
 ## Example Queries (Test the AI!)
 
-Copy and paste these queries into the Bioweaver chat interface to see its full power:
+Copy and paste these queries into the Bio-Inoscula chat interface to see its full power:
 
 ### Pathway & Metabolism Queries
 1. *"List all the genes, compounds, and drugs involved in carbohydrate metabolism."*
@@ -118,7 +118,7 @@ Copy and paste these queries into the Bioweaver chat interface to see its full p
 30. *"Break down the enzymes in Glycolysis by their EC class. How many are oxidoreductases?"*
 
 ### General & Conceptual Biology
-*Bioweaver routes classic textbook questions directly to the LLM's internal knowledge rather than querying databases.*
+*Bio-Inoscula routes classic textbook questions directly to the LLM's internal knowledge rather than querying databases.*
 31. *"What are the basic steps of glycolysis in order?"*
 32. *"Explain the central dogma of molecular biology."*
 33. *"What is the difference between a kinase and a phosphatase?"*
@@ -126,8 +126,8 @@ Copy and paste these queries into the Bioweaver chat interface to see its full p
 
 ## Data Acknowledgments & Credits
 
-This project queries and processes data from several public biological databases. Please refer to their respective licenses and terms of use if you plan to use Bioweaver for commercial purposes:
+This project queries and processes data from several public biological databases. Please refer to their respective licenses and terms of use if you plan to use Bio-Inoscula for commercial purposes:
 
 *   **KEGG (Kyoto Encyclopedia of Genes and Genomes):** Pathway, disease, reaction, and enzyme data are sourced from KEGG. KEGG data is freely available for academic use, but commercial use requires a license. Please visit the [KEGG Legal & Copyright](https://www.kegg.jp/kegg/legal.html) page for full details.
 *   **NCBI / NLM:** Gene summaries and ClinVar variant data are sourced from the National Center for Biotechnology Information.
-*   **Reactome:** Additional pathway data is integrated from the open-source Reactome knowledgebase. Note: Bioweaver uses a custom local Machine Learning model (TF-IDF vectorizer) to perform intelligent, fuzzy semantic matching of Reactome pathway names, preventing exact-character mismatch errors.
+*   **Reactome:** Additional pathway data is integrated from the open-source Reactome knowledgebase. Note: Bio-Inoscula uses a custom local Machine Learning model (TF-IDF vectorizer) to perform intelligent, fuzzy semantic matching of Reactome pathway names, preventing exact-character mismatch errors.

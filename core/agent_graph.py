@@ -42,6 +42,8 @@ from clients.reactome_client import get_reactome_pathway_data
 from analytics import kegg_analytics as pa
 from analytics import reactome_analytics as ra
 from analytics import compound_resolver as cr
+from analytics import rhea_analytics as rhea_db
+from core.memory_db import save_fact, forget_fact
 
 load_dotenv()
 
@@ -835,25 +837,71 @@ def tool_resolve_chemical(name: str, target_db: str = "all"):
 
 
 @tool
-def tool_query_rhea(rhea_id: str):
+def tool_rhea_comprehensive(rhea_id: str):
     """
     Directly query a Rhea Master ID to get its chemical equation, ChEBI identifiers, 
-    and cross-database mappings (KEGG, Reactome, UniProt, EC).
-    Input should be the numeric ID or 'RHEA:10000' format.
+    enzyme counts, and cross-database mappings (KEGG, Reactome, UniProt, EC).
     """
-    print(f"\n[Tool: query_rhea] Fetching details for Rhea ID: '{rhea_id}'")
-    return ra.query_rhea_master_id(rhea_id)
+    print(f"\n[Tool: rhea_comprehensive] ID: '{rhea_id}'")
+    return rhea_db.get_rhea_comprehensive(rhea_id)
+
+@tool
+def tool_rhea_reverse_lookup(external_id: str):
+    """
+    Give this an EC number (e.g. '2.7.1.1'), KEGG Reaction ID (e.g. 'R00299'), Reactome ID, or UniProt ID to instantly find its universal Rhea Master ID.
+    """
+    # external_id: The identifier from EC, KEGG, Reactome, or UniProt
+    print(f"\n[Tool: rhea_reverse_lookup] ID: '{external_id}'")
+    return rhea_db.reverse_lookup(external_id)
+
+@tool
+def tool_rhea_find_by_chebi(chebi_id: str):
+    """
+    Give this a ChEBI compound ID (e.g. CHEBI:16459) to find all Rhea reactions that consume or produce it.
+    """
+    # chebi_id: The ChEBI compound identifier
+    print(f"\n[Tool: rhea_find_by_chebi] ID: '{chebi_id}'")
+    return rhea_db.find_rhea_by_chebi(chebi_id)
+
+@tool
+def tool_search_rhea(query: str):
+    """
+    Search Rhea reactions by enzyme name (e.g. 'hexokinase'), EC number (e.g. '2.7.1.1'), or reaction equation (e.g. 'D-glucose + ATP').
+    Returns matching Rhea Master IDs, equations, and EC numbers.
+    """
+    # query: Search term representing enzyme name, EC number, or chemical equation
+    print(f"\n[Tool: search_rhea] Query: '{query}'")
+    return rhea_db.search_rhea_by_text(query)
 
 
 @tool
-def tool_pathway_rhea_mapping(kegg_pathway_id: str):
+def tool_pathway_rhea_mapping(kegg_pathway: str):
     """
-    Gets ALL reactions in a KEGG pathway and instantly maps them to their Rhea Master IDs and UniProt IDs.
-    IMPORTANT: Requires the KEGG map ID (e.g. 'map00010').
+    Gets ALL reactions in a KEGG pathway and instantly maps them to their Rhea Master IDs, equations, and UniProt IDs.
+    Accepts EITHER a pathway name (e.g. 'tyrosine metabolism', 'glycolysis') OR a KEGG map ID (e.g. 'map00350', 'map00010').
     Use this when asked for "all Rhea IDs in a pathway" or "Rhea mapping for a pathway".
     """
-    print(f"\n[Tool: pathway_rhea_mapping] KEGG='{kegg_pathway_id}'")
-    return ra.get_pathway_rhea_mapping(kegg_pathway_id)
+    print(f"\n[Tool: pathway_rhea_mapping] Pathway='{kegg_pathway}'")
+    return rhea_db.get_pathway_rhea_mapping(kegg_pathway)
+
+
+@tool
+def tool_remember_fact(fact: str):
+    """
+    Saves a persistent fact or preference about the user into long-term semantic memory.
+    Use this when the user expresses a rule, preference, or important detail you should remember for future conversations.
+    """
+    print(f"\n[Tool: remember_fact] Fact: '{fact}'")
+    return save_fact(fact)
+
+@tool
+def tool_forget_fact(fact_id: int):
+    """
+    Deletes a saved fact from long-term memory using its ID.
+    Use this if the user asks you to forget a specific preference or rule.
+    """
+    print(f"\n[Tool: forget_fact] Deleting Fact ID: {fact_id}")
+    return forget_fact(fact_id)
 
 
 # ---- AGENT BUILD FUNCTION ---- #
@@ -899,16 +947,21 @@ def build_ncbi_kegg_graph():
         tool_reactome_get_reactions,
         tool_compare_kegg_reactome_reactions,
         tool_resolve_chemical,
-        tool_query_rhea,
+        tool_rhea_comprehensive,
+        tool_rhea_reverse_lookup,
+        tool_rhea_find_by_chebi,
+        tool_search_rhea,
         tool_pathway_rhea_mapping,
+        tool_remember_fact,
+        tool_forget_fact,
     ]
 
     system_prompt = (
-        "You are a biomedical research assistant. Use tools to search NCBI, KEGG, and ClinVar.\n\n"
+        "You are Bio-Inoscula, a ReAct-powered biomedical AI agent developed to dynamically query NCBI, KEGG, Reactome, and ClinVar. You act as a central hub for biological knowledge, helping users explore genes, pathways, diseases, and mutations.\n\n"
         "### CRITICAL RULES:\n"
         "1. **OFF-TOPIC**: You are a specialized agent. If a query is COMPLETELY unrelated to biology, chemistry, medicine, genetics, or diseases (e.g., asking for recipes or general chatter), refuse it. However, if the query contains ANY biochemical terms (like 'glycolysis', 'rhea', 'reactions', 'kegg'), you MUST process it and NEVER refuse it.\n"
         "2. **FORMATTING**: No LaTeX math. Use plain text.\n"
-        "3. **KNOWLEDGE**: For database queries, answer ONLY from tool output and never invent fields. **CRITICAL: NEVER summarize, paraphrase, or rewrite descriptions retrieved from KEGG or Reactome (e.g., pathway or disease overviews). You MUST output the exact word-for-word text provided by the tool.** For general conceptual questions (e.g. 'what are modules?', 'explain glycolysis' without asking for database info), you may use your internal knowledge and answer concisely.\n"
+        "3. **KNOWLEDGE**: For database queries, answer ONLY from tool output and never invent fields. **CRITICAL: NEVER summarize, paraphrase, or rewrite descriptions retrieved from KEGG or Reactome (e.g., pathway or disease overviews). You MUST output the exact word-for-word text provided by the tool.** **CRITICAL RHEA RULE: Whenever the user asks for Rhea IDs or mappings for any reaction or pathway, NEVER guess or invent Rhea IDs. You MUST execute tool_pathway_rhea_mapping or tool_search_rhea.** For general conceptual questions (e.g. 'what are modules?', 'explain glycolysis' without asking for database info), you may use your internal knowledge and answer concisely.\n"
         "4. **TOOL SELECTION & PAGINATION**:\n"
         "   - Disease/Pathway genes: call `tool_search_kegg_disease` / `tool_search_kegg_pathway` ONCE. Do NOT loop `tool_get_ncbi_gene_info`.\n"
         "   - `tool_get_ncbi_gene_info`: use only for a single specific gene the user explicitly names.\n"
@@ -937,9 +990,14 @@ def build_ncbi_kegg_graph():
         "    - If asked to list reactions in a Reactome pathway, or if the user simply provides a Reactome ID (e.g., 'R-HSA-9663891'), they want to see its basic reactions. Use `tool_reactome_get_reactions`. By default, only output basic info (ID and Equation). NEVER output descriptions, full genes, compartments, or summations unless explicitly asked.\n"
         "    - If asked for 'common reactions' / 'shared reactions' / 'reactions in both KEGG and Reactome' for any pathway -> ALWAYS use `tool_compare_kegg_reactome_reactions`. NEVER manually compare reaction lists yourself.\n"
         "    - If asked to 'resolve', 'identify', find 'synonyms', or map a chemical across databases (e.g. 'what is the KEGG ID for pyruvate?'), ALWAYS use `tool_resolve_chemical`.\n"
-        "    - If asked about a Rhea ID (e.g., 'What is Rhea 10000?'), ALWAYS use `tool_query_rhea` to get its equation and cross-database mappings.\n"
-        "    - If asked to get Rhea IDs for an entire pathway (e.g. 'get all reactions from glycolysis and their rhea ids'), ALWAYS use `tool_pathway_rhea_mapping`.\n"
-        "14. **SOURCES, REFERENCES & FALLBACKS**: You MUST explicitly and accurately state the exact source of ALL data you provide. If a tool uses a fallback source (like fetching a Wikipedia summary because a KEGG disease description was missing), you MUST explicitly state that the data is from Wikipedia (or the actual fallback source) and briefly explain WHY (e.g., 'Source: Wikipedia (Fallback used because KEGG lacked a description)'). Do NOT falsely claim data is from KEGG or Reactome if the tool pulled it from Wikipedia, HGNC, or another fallback. This strict citation rule applies to EVERYTHING: diseases, pathways, genes, compounds, etc. If explaining concepts purely from your own internal training data, explicitly state 'Source: Internal LLM Knowledge'.\n\n"
+        "    - If asked for a Rhea ID by enzyme name, equation, or keyword (e.g. 'hexokinase' or 'D-glucose + ATP'), use `tool_search_rhea`.\n"
+        "    - If asked for a specific reaction or pathway step (e.g. 'first reaction of glycolysis' -> hexokinase / EC 2.7.1.1), use `tool_search_rhea` or find its EC number / KEGG ID (e.g. R00299) and use `tool_rhea_reverse_lookup`. Do NOT use `tool_pathway_rhea_mapping` for a single reaction query.\n"
+        "    - If asked about a Rhea ID (e.g., 'What is Rhea 10000?'), ALWAYS use `tool_rhea_comprehensive` to get its equation and cross-database mappings.\n"
+        "    - If asked to find a Rhea reaction from another database ID or EC number (e.g., '2.7.1.1' or KEGG 'R00299'), ALWAYS use `tool_rhea_reverse_lookup`.\n"
+        "    - If asked to find Rhea reactions involving a specific ChEBI compound, ALWAYS use `tool_rhea_find_by_chebi`.\n"
+        "    - If asked to get Rhea IDs or mappings for any pathway (e.g. 'get all reactions from glycolysis and their rhea ids', 'tyrosine metabolism reactions with rhea ids'), you MUST NEVER invent Rhea numbers. You MUST execute `tool_pathway_rhea_mapping`.\n"
+        "14. **SOURCES, REFERENCES & FALLBACKS**: You MUST explicitly and accurately state the exact source of ALL data you provide. If a tool uses a fallback source (like fetching a Wikipedia summary because a KEGG disease description was missing), you MUST explicitly state that the data is from Wikipedia (or the actual fallback source) and briefly explain WHY (e.g., 'Source: Wikipedia (Fallback used because KEGG lacked a description)'). Do NOT falsely claim data is from KEGG or Reactome if the tool pulled it from Wikipedia, HGNC, or another fallback. This strict citation rule applies to EVERYTHING: diseases, pathways, genes, compounds, etc. If explaining concepts purely from your own internal training data, explicitly state 'Source: Internal LLM Knowledge'.\n"
+        "15. **MEMORY & PREFERENCES**: You have tools to remember and forget permanent facts about the user. If the user tells you a preference, use `tool_remember_fact`. If they ask to forget something, use `tool_forget_fact`.\n\n"
         "Format answers as clean Markdown. No filler sentences. No 'Further Reading' unless asked."
     )
 
@@ -947,16 +1005,3 @@ def build_ncbi_kegg_graph():
     agent = create_react_agent(llm, tools, prompt=system_prompt)
     # Hard cap: max 10 tool calls per query to prevent infinite looping
     return agent.with_config({"recursion_limit": 10})
-
-
-# Detailed Script Workings:
-# 1. Each tool_ function wraps the underlying API client functions from kegg_client.py,
-#    ncbi_client.py, clinvar_client.py, and pubtator_client.py using the @tool decorator.
-# 2. The @tool decorator gives each function a clear docstring that the LLM reads to
-#    decide which tool is relevant to the user's query.
-# 3. build_ncbi_kegg_graph() initializes the Gemini LLM, binds all tools to it,
-#    and creates a ReAct agent using langgraph.prebuilt.create_react_agent.
-# 4. The agent runs a Reasoning -> Acting -> Observation loop automatically:
-#    it reads the query, calls tools, reads their output, and decides what to do next.
-# 5. No hardcoded edges, static nodes, or manual state routing are needed anymore.
-# 6. gene_query.py calls build_ncbi_kegg_graph() and invokes the agent the same way as before.

@@ -1,7 +1,7 @@
 [project]
-name = "bioweaver-agent"
+name = "bio-inoscula-agent"
 version = "0.1.0"
-description = "Bioweaver: An intelligent, ReAct-powered biomedical agent that dynamically connects NCBI, KEGG, Reactome, and ClinVar databases."
+description = "Bio-Inoscula: An intelligent, ReAct-powered biomedical agent that dynamically connects NCBI, KEGG, Reactome, and ClinVar databases."
 readme = "README.md"
 authors = [
     { name = "Ganesh-sys-git", email = "sankarganesh16021999@gmail.com" }
@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.scripts]
-bioweaver-agent = "bioweaver_agent:main"
+bio-inoscula-agent = "bio_inoscula_agent:main"
 
 [build-system]
 requires = ["uv_build>=0.12.3,<0.13.0"]

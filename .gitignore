@@ -4,6 +4,7 @@ Futile/
 sep-futile/
 __pycache__/
 Clinvar_files/
+bioweaver_memory.db
 .python-version
 .venv/
 *.log
