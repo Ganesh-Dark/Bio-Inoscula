@@ -1,133 +1,135 @@
 # Bio-Inoscula
 
-Bio-Inoscula is a ReAct-powered biomedical AI agent. It acts as a central hub, dynamically querying and weaving together data from NCBI, KEGG, Reactome, and ClinVar. It allows users to ask natural language questions about genes, pathways, diseases, compounds, drugs, mutations and retrieve factual answers directly from official biological databases.
+Bio-Inoscula is a ReAct-powered biomedical AI agent. It acts as a central hub, dynamically querying and integrating biological data from NCBI, KEGG, Reactome, ClinVar, and Rhea. Users can submit natural language queries regarding genes, metabolic pathways, diseases, chemical compounds, approved drugs, and genomic mutations to retrieve factual, cross-referenced answers directly from official biological databases.
 
-> **⚠️ IMPORTANT OVERVIEW DISCLAIMER ⚠️**
-> **Bio-Inoscula is designed as an "Overview Agent." Because biological databases are incredibly vast (pathways can have thousands of genes and metabolites), the script is hardcoded to return TRIMMED and PAGINATED results to prevent the AI from crashing or running out of context memory.**
-> **If you need comprehensive, exhaustive data (e.g., all 400 genes in a pathway), you MUST manually tweak the script parameters and use your own heavy-duty API keys.**
+> **[IMPORTANT OVERVIEW DISCLAIMER]**
+> **Bio-Inoscula is designed as an "Overview Agent." Because biological databases are vast (pathways can contain hundreds of genes and metabolites), query outputs are paginated and filtered to optimize context utilization and prevent memory issues.**
+> **For exhaustive, raw-scale datasets, query parameters can be adjusted directly in the analytics modules.**
+
+---
 
 ## Features & Capabilities
 
-Bio-Inoscula is equipped with tools to query specific biological domains:
-*   **Pathways & Metabolism (KEGG & Reactome):** Fetches comprehensive lists of genes, compounds, and drugs involved in specific biological pathways. It dynamically merges data from both databases and deduplicates the results.
-*   **Diseases & Modules (KEGG & Wikipedia):** Searches the KEGG Disease database to find genes linked to specific diseases, and automatically falls back to Wikipedia to provide human-readable overviews of rare diseases.
-*   **Clinical Variants (ClinVar):** Uses a local DuckDB engine to rapidly search the massive ClinVar database for known pathogenic mutations associated with specific genes.
-*   **Gene Deep-Dives (NCBI HGNC):** Retrieves official gene summaries, descriptions, and organism data directly from NCBI.
-*   **Reactions & Enzymes (KEGG Offline TSVs):** Local parsing of KEGG Reactions, Enzymes, Modules, and Orthology (KO) using offline `.tsv` databases to isolate specific substrates and products without API rate limits.
-*   **Local Pathway Analytics:** Custom Python modules (`kegg_analytics.py` & `reactome_analytics.py`) that perform set operations and pathway analysis locally (e.g., finding isozymes, shared compounds, orphan reactions). This reduces token usage by preprocessing datasets.
-*   **Chemical Resolution:** A robust internal resolver using PubChem to map generic chemical names to universal InChIKeys and extract official KEGG, ChEBI, HMDB, and DrugBank identifiers.
-*   **Rhea Universal Reaction Mapping:** Seamless, offline cross-referencing between KEGG, Reactome, and Rhea. Instantly maps reactions to universal Rhea Master IDs, ChEBI participants, UniProt proteins, and EC numbers.
-*   **Query Routing:** The ReAct agent differentiates between database queries and general biological concepts. Standard conceptual questions (e.g., "What are the 10 steps of glycolysis?") are answered using the LLM's internal knowledge, saving API calls.
+- **Pathways & Metabolism (KEGG & Reactome):** Fetches genes, compounds, and reactions involved in specific biological pathways. Merges and deduplicates datasets across databases.
+- **Rhea Universal Reaction Mapping:** High-speed offline mapping between KEGG Reactions, Reactome Reactions, and Rhea Master IDs. Enriches reactions with full balanced equations, EC numbers, and UniProt cross-references.
+- **Sub-Second Rhea Caching:** Pre-compiled binary cache (`Rhea_files/rhea_db.pkl`) loads over 18,000 Rhea master reactions and 250,000 reverse lookups in under 0.1 seconds.
+- **Diseases & Phenotypes (KEGG Disease & Wikipedia):** Identifies genes and pathways linked to human diseases in KEGG Disease, with automated Wikipedia fallback for rare conditions.
+- **Clinical Variants (ClinVar):** Leverages an embedded DuckDB engine to execute fast queries against NCBI ClinVar for pathogenic mutations and associated clinical phenotypes.
+- **Gene Summaries (NCBI HGNC):** Retrieves official gene nomenclature, summaries, and genomic positions directly from NCBI.
+- **Local Enzyme & Reaction Analytics:** Offline parsing of KEGG Reactions, Enzymes, Modules, and Orthology (KO) to identify isozymes, orphan reactions, and shared metabolites without rate limits.
+- **Chemical Structure Resolution:** Resolves common chemical and drug names through PubChem to standard InChIKeys and maps them across KEGG, ChEBI, HMDB, and DrugBank.
+- **Persistent Conversation Memory:** SQLite-backed episodic memory (`bioweaver_memory.db`) preserves conversational context and message history across turns and server restarts.
+- **Intelligent Query Routing:** ReAct agent routes theoretical textbook questions to internal knowledge while reserving database tools for empirical and clinical queries.
+
+---
 
 ## Setup Instructions
 
-**Important Note on Data Files:**
-Almost all required database files (HGNC, KEGG Pathways, KEGG Diseases, KEGG Organisms, and Reactome) are fully included in this repository in their respective folders. 
+### Prerequisites & Python Environment
 
-The **only** file that is not included is the ClinVar database (`variant_summary.txt.gz`). This file is over 150MB, and GitHub strictly blocks the uploading of any files larger than 100MB.
-
-Before running the application for the first time, you must download the ClinVar database by running this simple script in your terminal:
+Activate your Python environment:
 ```bash
-python setup_dbs.py
+conda activate python_env
 ```
-*This will safely download the ClinVar file directly from the NCBI FTP servers and place it in your local directory.*
-
-> **Want the latest KEGG & HGNC data?** 
-> Even though KEGG and HGNC databases are already included, they update frequently. If you ever want to fetch the absolute latest, most recent versions directly from the official KEGG/HGNC APIs, simply delete the existing files in your data folder and run `python setup_dbs.py` again. The script will automatically detect they are missing and download the newest versions for you!
-
-**API Key Setup:**
-I strongly recommend to use Google free tier gemini API as this tool sometimes consumes too many tokens depending on context. You must provide your API key for that. There is also option to use Hugging face models or Groq if you prefer.
-1. Create a file named `.env` in the root directory.
-2. Add your API key exactly like this:
-```env
-LLM_API=your_actual_api_key_here
-```
-
-## Installation and Execution
-
-This project uses the modern `uv` package manager for lightning-fast dependency resolution.
-
-To install all dependencies and launch the application instantly, you can just run:
-```bash
-uv run python app.py
-```
-*(This will start the backend server on **http://localhost:8000**)*
-
-Alternatively, to explicitly create a virtual environment and install from `requirements.txt` using `uv`:
+Or use the `uv` virtual environment workflow:
 ```bash
 uv venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
-python app.py
 ```
-*(This will start the backend server on **http://localhost:8000**)*
 
-### Alternative Installation (using pip)
-If you do not have `uv` installed, you can use standard Python tools:
+### Data Files Setup
+
+Most required database files (HGNC, KEGG Pathways, KEGG Diseases, KEGG Organisms, Reactome, and Rhea TSVs) are included in this repository.
+
+1. **ClinVar Database:**
+   The ClinVar database file (`variant_summary.txt.gz`) exceeds GitHub file size limits and must be downloaded locally:
+   ```bash
+   python setup_dbs.py
+   ```
+   *This downloads the latest ClinVar summary directly from the NCBI FTP server.*
+
+2. **Rhea Pickle Cache Generation (Optional if rebuilding):**
+   To recompile the fast binary Rhea database from source TSVs:
+   ```bash
+   python scripts/build_rhea_pickle.py
+   ```
+   *Generates `Rhea_files/rhea_db.pkl` for sub-second reaction mapping.*
+
+### API Key Configuration
+
+Bio-Inoscula supports Google Gemini, Groq, or Hugging Face LLM backends:
+
+1. Create a `.env` file in the root directory:
+   ```bash
+   cp .env.example .env
+   ```
+2. Configure your API key in `.env`:
+   ```env
+   LLM_API=your_actual_api_key_here
+   ```
+
+---
+
+## Running the Application
+
+### Using `uv` (Recommended)
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
-pip install -r requirements.txt
+uv run app.py
+```
+
+### Using Standard Python
+```bash
 python app.py
 ```
 
-## Example Queries (Test the AI!)
+The application server will start at:
+**http://localhost:8000**
 
-Copy and paste these queries into the Bio-Inoscula chat interface to see its full power:
+Open your web browser and navigate to `http://localhost:8000` to access the chat dashboard.
 
-### Pathway & Metabolism Queries
-1. *"List all the genes, compounds, and drugs involved in carbohydrate metabolism."*
-2. *"I want to know the genes in the TCA cycle. I only want data from Reactome."*
-3. *"What compounds are created during glycolysis?"*
-4. *"Show me the difference between KEGG and Reactome data for the pentose phosphate pathway."*
+---
+
+## Example Queries
+
+### Pathway & Metabolism
+- "List all the genes, compounds, and drugs involved in carbohydrate metabolism."
+- "I want to know the genes in the TCA cycle. I only want data from Reactome."
+- "What compounds are created during glycolysis?"
+- "Show me the difference between KEGG and Reactome data for the pentose phosphate pathway."
+
+### Rhea Reaction Mapping
+- "Get tyrosine metabolism reactions from KEGG along with Rhea IDs."
+- "Map glycolysis reactions to Rhea and show their chemical equations."
+- "Find Rhea reactions catalyzed by EC 1.1.1.1."
+- "What is Rhea 10012?"
 
 ### Disease & Clinical Queries
-5. *"Search for Parkinson's disease. Get me the overview and find all linked genes from KEGG."*
-6. *"What genes are associated with Alzheimer's disease in the KEGG database?"*
-7. *"Tell me about Glioblastoma and list any related metabolic pathways."*
-8. *"What does the KEGG database say about Type 2 Diabetes?"*
+- "Search for Parkinson's disease. Get me the overview and find all linked genes from KEGG."
+- "What genes are associated with Alzheimer's disease in the KEGG database?"
+- "Tell me about Glioblastoma and list any related metabolic pathways."
+- "What does the KEGG database say about Type 2 Diabetes?"
 
-### Gene Deep-Dives
-9. *"Tell me everything you know about the BRCA1 gene. What is its official NCBI summary?"*
-10. *"Look up the TP53 gene. What diseases is it linked to in KEGG?"*
-11. *"What is the official description and organism for the EGFR gene?"*
-12. *"Compare the official NCBI summaries of BRCA1 and BRCA2."*
+### Gene Deep-Dives & Mutations
+- "Tell me everything you know about the BRCA1 gene. What is its official NCBI summary?"
+- "Look up the TP53 gene. What diseases is it linked to in KEGG?"
+- "What are the most dangerous pathogenic mutations for the TP53 gene in ClinVar?"
+- "Find the top pathogenic variants for BRCA1 in ClinVar."
 
-### ClinVar Mutation Queries
-13. *"What are the most dangerous pathogenic mutations for the TP53 gene?"*
-14. *"Find the top pathogenic variants for BRCA1 in ClinVar."*
-15. *"Are there any known mutations for the APOE gene?"*
-16. *"List the pathogenic mutations for EGFR and tell me what phenotypes they cause."*
+### Chemical & Enzyme Analytics
+- "Find all reactions where pyruvate is a product."
+- "What are the substrates and products of reaction R00224?"
+- "Which enzymes in Glycolysis are oxidoreductases?"
+- "Resolve 'pyruvate' and give me all its database cross-reference IDs."
 
-### Reaction, Chemical & Cross-Database Queries
-17. *"Find all reactions where pyruvate is a product."*
-18. *"What are the substrates and products of reaction R00224?"*
-19. *"List enzymes that involve ATP as a substrate."*
-20. *"What is a KEGG module and how is it related to glycolysis?"*
-21. *"Resolve 'pyruvate' and give me all its database IDs."*
-22. *"Get all reactions from glycolysis and get their rhea ids."*
-23. *"What exactly is Rhea 10012?"*
-24. *"What are the common reactions between KEGG Glycolysis and Reactome Glycolysis?"*
-
-### Advanced Pathway Analytics
-25. *"Which ECs catalyze the same reaction in the TCA cycle?"*
-26. *"What are the irreversible reactions in the Pentose Phosphate Pathway?"*
-27. *"Which reactions in the Alzheimer's disease pathway do not have a known enzyme yet?"*
-28. *"What compounds are common between Glycolysis, the TCA cycle, and the Pentose Phosphate Pathway?"*
-29. *"Exactly which reactions produce ATP, and which reactions consume ATP in Glycolysis?"*
-30. *"Break down the enzymes in Glycolysis by their EC class. How many are oxidoreductases?"*
-
-### General & Conceptual Biology
-*Bio-Inoscula routes classic textbook questions directly to the LLM's internal knowledge rather than querying databases.*
-31. *"What are the basic steps of glycolysis in order?"*
-32. *"Explain the central dogma of molecular biology."*
-33. *"What is the difference between a kinase and a phosphatase?"*
-34. *"How do competitive and non-competitive inhibitors differ?"*
+---
 
 ## Data Acknowledgments & Credits
 
-This project queries and processes data from several public biological databases. Please refer to their respective licenses and terms of use if you plan to use Bio-Inoscula for commercial purposes:
+Bio-Inoscula integrates data from the following public biomedical repositories:
 
-*   **KEGG (Kyoto Encyclopedia of Genes and Genomes):** Pathway, disease, reaction, and enzyme data are sourced from KEGG. KEGG data is freely available for academic use, but commercial use requires a license. Please visit the [KEGG Legal & Copyright](https://www.kegg.jp/kegg/legal.html) page for full details.
-*   **NCBI / NLM:** Gene summaries and ClinVar variant data are sourced from the National Center for Biotechnology Information.
-*   **Reactome:** Additional pathway data is integrated from the open-source Reactome knowledgebase. Note: Bio-Inoscula uses a custom local Machine Learning model (TF-IDF vectorizer) to perform intelligent, fuzzy semantic matching of Reactome pathway names, preventing exact-character mismatch errors.
+- **KEGG (Kyoto Encyclopedia of Genes and Genomes):** Pathway, disease, reaction, and enzyme data. KEGG is freely available for academic use (commercial use requires a license from Kanehisa Laboratories).
+- **Rhea:** Biochemical reaction data sourced from Rhea, developed by the Swiss Institute of Bioinformatics (SIB).
+- **NCBI / NLM:** Gene nomenclature, genomic summaries, and ClinVar variant records sourced from the National Center for Biotechnology Information.
+- **Reactome:** Open-source curated biological pathway data provided by the Reactome knowledgebase.
+- **PubChem:** Chemical structure mapping, InChIKey derivation, and compound cross-references provided by NCBI PubChem.
+- **HGNC:** Standardized human gene nomenclature provided by the HUGO Gene Nomenclature Committee.
